@@ -1,0 +1,250 @@
+===============================================================
+   COMANDOS EXACTOS PARA DESPLEGAR TU APP EN EL VPS
+===============================================================
+
+IMPORTANTE: Lee esto completo antes de ejecutar cualquier comando
+
+===============================================================
+PASO 1: PREPARACIÓN
+===============================================================
+
+Archivos creados:
+- deploy.tar.gz (192 KB) - Tu app lista para subir
+- DEPLOY_COMPLETE.md - Guía completa con detalles
+- deploy-vps.sh - Script para crear más archivos si necesitas
+
+===============================================================
+PASO 2: CONECTAR A TU VPS
+===============================================================
+
+Opción A: Usando SSH estándar
+---------------------------------
+ssh root@45.137.192.146
+
+Opción B: Si no tienes SSH configurado
+---------------------------------
+1. Ve al panel de Contabo
+2. Busca "SSH Keys" o "Credenciales"
+3. Configura acceso SSH según sus instrucciones
+
+===============================================================
+PASO 3: DETENER EL SERVIDOR ANTIGUO
+===============================================================
+
+Una vez conectado al VPS, ejecuta estos comandos en orden:
+
+# Ver qué está corriendo
+ps aux | grep node
+sudo ss -tlnp | grep 3001
+
+# Opción 1: Si usas PM2
+pm2 list
+pm2 stop all
+pm2 delete all
+
+# Opción 2: Si usas systemd
+sudo systemctl list-units | grep node
+sudo systemctl stop nombre-del-servicio
+
+# Opción 3: Si está corriendo directamente
+pkill node
+
+===============================================================
+PASO 4: SUBIR LOS ARCHIVOS
+===============================================================
+
+Desde tu Mac, abre una NUEVA terminal y ejecuta:
+
+cd "/Users/cesargarcia/Desktop/DeFi Hedge Fund App"
+
+# Subir el archivo
+scp deploy.tar.gz root@45.137.192.146:/tmp/
+
+# AHORA ejecuta el despliegue automático
+ssh root@45.137.192.146 'cd /var/www/html && sudo tar -xzf /tmp/deploy.tar.gz && sudo chown -R www-data:www-data /var/www/html && sudo chmod -R 755 /var/www/html'
+
+===============================================================
+PASO 5: CONFIGURAR NGINX
+===============================================================
+
+Vuelve al SSH del VPS y ejecuta:
+
+# Verificar si Nginx está instalado
+nginx -v
+
+# Si no está instalado:
+sudo apt update
+sudo apt install nginx -y
+
+# Editar configuración
+sudo nano /etc/nginx/sites-available/default
+
+# BORRA TODO el contenido y pega esto:
+
+server {
+    listen 3001;
+    server_name 45.137.192.146;
+    
+    root /var/www/html;
+    index index.html;
+    
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+    
+    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg)$ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+    }
+    
+    access_log off;
+    error_log off;
+}
+
+# Guarda y cierra: Ctrl+X, luego Y, luego Enter
+
+# Verificar configuración
+sudo nginx -t
+
+# Si dice "syntax is ok", entonces:
+sudo systemctl reload nginx
+
+===============================================================
+PASO 6: VERIFICAR
+===============================================================
+
+Visita en tu navegador:
+http://45.137.192.146:3001/
+
+Deberías ver:
+- Dashboard de DeFi Hedge Fund
+- Título "DeFi Hedge Fund"
+- Subtítulo "Automated Yield Optimization"
+- Botón "Connect Wallet"
+
+NO deberías ver:
+- "Arbitrum One" en el título
+- El dashboard antiguo
+
+===============================================================
+PASO 7: PROBAR METAMASK
+===============================================================
+
+1. Haz clic en "Connect Wallet"
+2. MetaMask debería:
+   - Mostrar un popup para agregar "Arbitrum Sepolia Testnet"
+   - O cambiar automáticamente a esa red
+3. Confirma la conexión
+4. Deberías ver tu dirección y el indicador verde
+
+===============================================================
+PROBLEMAS COMUNES
+===============================================================
+
+ERROR: "Permission denied (publickey,password)"
+---------------------------------
+Solución: Configura SSH en el panel de Contabo
+
+ERROR: "No such file or directory: /var/www/html"
+---------------------------------
+Solución: Crea el directorio:
+sudo mkdir -p /var/www/html
+sudo chmod 755 /var/www/html
+
+ERROR: "nginx: command not found"
+---------------------------------
+Solución: Instala Nginx:
+sudo apt update
+sudo apt install nginx -y
+
+ERROR: "E: Unable to locate package nginx"
+---------------------------------
+Solución: Tu VPS podría no ser Ubuntu/Debian
+Para otros sistemas:
+- CentOS/RHEL: sudo yum install nginx
+- Fedora: sudo dnf install nginx
+
+ERROR: La página muestra 502 Bad Gateway
+---------------------------------
+Solución: Verifica Nginx:
+sudo systemctl status nginx
+sudo nginx -t
+sudo tail -f /var/log/nginx/error.log
+
+ERROR: La página muestra "Connection refused"
+---------------------------------
+Solución: Verifica el puerto 3001:
+sudo ss -tlnp | grep 3001
+sudo systemctl start nginx
+
+Página en blanco o no carga los estilos
+---------------------------------
+Solución: Verifica permisos:
+sudo chown -R www-data:www-data /var/www/html
+sudo chmod -R 755 /var/www/html
+ls -la /var/www/html/
+
+===============================================================
+ALTERNATIVA: Si Nginx da problemas
+===============================================================
+
+Instala un servidor simple con Node.js:
+
+# En el VPS
+sudo npm install -g serve
+
+# Correr en puerto 3001
+nohup serve -s /var/www/html -l 3001 > /var/log/vite-app.log 2>&1 &
+
+# O con PM2:
+pm2 serve /var/www/html 3001 --spa
+pm2 save
+pm2 startup
+
+===============================================================
+SI TODO FALLA
+===============================================================
+
+Ejecuta esto en el VPS y comparte el resultado:
+
+echo "=== SISTEMA ===" 
+uname -a
+echo "=== NGINX ==="
+nginx -v 2>&1 || echo "Nginx no instalado"
+echo "=== NODE ==="
+node -v 2>&1 || echo "Node no instalado"
+npm -v 2>&1 || echo "NPM no instalado"
+echo "=== PROCESOS ==="
+ps aux | grep -E "nginx|node" | head -20
+echo "=== PUERTO 3001 ==="
+sudo ss -tlnp | grep 3001
+echo "=== ARCHIVOS ==="
+ls -la /var/www/html/
+echo "=== NGINX STATUS ==="
+sudo systemctl status nginx | head -20
+
+===============================================================
+RESUMEN RÁPIDO
+===============================================================
+
+1. ssh root@45.137.192.146
+2. pm2 stop all (o el comando que detenga tu servidor)
+3. (En tu Mac) scp deploy.tar.gz root@45.137.192.146:/tmp/
+4. (En VPS) cd /var/www/html && sudo tar -xzf /tmp/deploy.tar.gz
+5. (En VPS) sudo chown -R www-data:www-data /var/www/html
+6. (En VPS) sudo chmod -R 755 /var/www/html
+7. (En VPS) Configura Nginx (ver PASO 5)
+8. (En VPS) sudo nginx -t && sudo systemctl reload nginx
+9. Visita http://45.137.192.146:3001/
+
+===============================================================
+CONTACTO Y AYUDA
+===============================================================
+
+Si necesitas ayuda adicional:
+1. Comparte el resultado del comando de diagnóstico (SI TODO FALLA)
+2. Indica en qué paso específico falló
+3. Comparte cualquier mensaje de error
+
+===============================================================
+

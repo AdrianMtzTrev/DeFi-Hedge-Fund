@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Verificar Contrato Vault</title>
+    <script src="https://cdn.ethers.io/lib/ethers-5.7.umd.min.js"></script>
+</head>
+<body>
+    <h1>Verificar Estado del Contrato Vault</h1>
+    <button onclick="verificar()">Verificar Contrato</button>
+    <div id="resultado"></div>
+
+    <script>
+        async function verificar() {
+            const provider = new ethers.providers.JsonRpcProvider('https://sepolia-rollup.arbitrum.io/rpc');
+            const vault = '0xF2aC145700F1F1eeFD3c8F3923E9D15B18De412f';
+            const link = '0xb1D4538B4571d411F07960EF2838Ce337FE1E80E';
+            const abi = [
+                'function asset() external view returns (address)',
+                'function paused() external view returns (bool)'
+            ];
+            
+            try {
+                const contract = new ethers.Contract(vault, abi, provider);
+                const asset = await contract.asset();
+                let paused = false;
+                try {
+                    paused = await contract.paused();
+                } catch(e) {}
+                
+                const resultado = document.getElementById('resultado');
+                resultado.innerHTML = `
+                    <h2>Resultado:</h2>
+                    <p><strong>Asset configurado:</strong> ${asset}</p>
+                    <p><strong>Asset esperado (LINK):</strong> ${link}</p>
+                    <p><strong>¿Está inicializado con LINK?</strong> ${asset.toLowerCase() === link.toLowerCase() ? '✅ SÍ' : '❌ NO'}</p>
+                    <p><strong>¿Está pausado?</strong> ${paused ? '⏸️ SÍ' : '▶️ NO'}</p>
+                    ${asset.toLowerCase() !== link.toLowerCase() ? 
+                        '<p style="color: red;"><strong>⚠️ El contrato necesita ser inicializado con LINK</strong></p>' : 
+                        '<p style="color: green;"><strong>✅ El contrato está listo para usar</strong></p>'
+                    }
+                `;
+            } catch(error) {
+                document.getElementById('resultado').innerHTML = `
+                    <p style="color: red;">Error: ${error.message}</p>
+                    <p>El contrato probablemente no está inicializado o hay un problema de conexión.</p>
+                `;
+            }
+        }
+    </script>
+</body>
+</html>
